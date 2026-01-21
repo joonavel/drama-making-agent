@@ -1,0 +1,11 @@
+Character Bible:
+{character_bible}
+
+Style Bible:
+{style_bible}
+
+Objective:
+{objective}
+
+Instruction:
+{frame_prompt}

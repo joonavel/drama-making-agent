@@ -1,0 +1,4 @@
+**Context from Story Agent:**
+{story_context}
+
+**User Input:** {user_input}
