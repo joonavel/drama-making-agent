@@ -4,7 +4,7 @@ Drama Making Agent - Pydantic Models for Workflow
 이 파일은 workflow_1st_mvp_spec.md에 정의된 모든 Pydantic 모델을 포함합니다.
 """
 
-from typing import List, Optional, Literal, Dict, Any, Annotated
+from typing import List, Optional, Literal, Dict, Any, Annotated, TypedDict
 from pydantic import BaseModel, Field
 
 HexColor = Annotated[
@@ -209,46 +209,28 @@ class VideoEngineerOutput(BaseModel):
 # LangGraph State Model
 # ==========================================
 
-class GraphState(BaseModel):
+class GraphState(TypedDict):
     """
     LangGraph State for the entire workflow
     """
     # User Input
-    user_input: str = Field(description="Initial user input for story generation")
+    user_input: str # Initial user input for story generation
     
     # Bible & Guide
-    story_bible: Optional[StoryBible] = Field(default=None)
-    character_bible: Optional[CharacterBible] = Field(default=None)
-    style_bible: Optional[StyleBible] = Field(default=None)
+    story_bible: Optional[StoryBible] # 스토리 설정
+    character_bible: Optional[CharacterBible] # 캐릭터 설정
+    style_bible: Optional[StyleBible] # 촬영 스타일 설정
     
     # Planning & Prompts
-    director_output: Optional[DirectorOutput] = Field(default=None)
-    image_engineer_output: Optional[ImageEngineerOutput] = Field(default=None)
-    video_engineer_output: Optional[VideoEngineerOutput] = Field(default=None)
+    director_output: Optional[DirectorOutput] # 바이블에 기반한 촬영 요소 및 계획
+    image_engineer_output: Optional[ImageEngineerOutput] # 촬영 요소 및 계획에 기반한 이미지 생성 프롬프트
+    video_engineer_output: Optional[VideoEngineerOutput] # 촬영 요소 및 계획에 기반한 비디오 생성 프롬프트
     
     # Asset, Frame, Video paths
-    assets: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Dictionary mapping asset names to file paths"
-    )
-    frames: Optional[List[str]] = Field(
-        default=None,
-        description="List of 5 keyframe image file paths"
-    )
-    videos: Optional[List[str]] = Field(
-        default=None,
-        description="List of 4 video file paths"
-    )
-    final_video: Optional[str] = Field(
-        default=None,
-        description="Final merged video file path"
-    )
+    assets: Optional[Dict[str, str]] # 에셋 파일 경로
+    frames: Optional[List[str]] # 프레임 파일 경로
+    videos: Optional[List[str]] # 비디오 파일 경로
+    final_video: Optional[str] # 최종 비디오 파일 경로
     
     # Error tracking
-    errors: Optional[List[str]] = Field(
-        default=None,
-        description="List of errors encountered during workflow"
-    )
-
-    class Config:
-        arbitrary_types_allowed = True
+    errors: Optional[List[str]] # 오류 메시지
