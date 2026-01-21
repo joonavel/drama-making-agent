@@ -13,7 +13,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 # 프로젝트 루트 경로
-PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 # 환경 변수 로드
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
@@ -53,7 +53,7 @@ def setup_logger(name: str = __name__, level: int = logging.INFO) -> logging.Log
     return logger
 
 
-def load_prompt(path: str) -> str:
+def load_prompt(path: str | Path) -> str:
     """
     프롬프트 파일을 로드합니다.
     
@@ -66,11 +66,12 @@ def load_prompt(path: str) -> str:
     Example:
         >>> prompt = load_prompt("prompts/system/story_agent.prompt")
     """
-    file_path = Path(path)
-    
-    # 상대 경로인 경우 프로젝트 루트 기준으로 변환
-    if not file_path.is_absolute():
-        file_path = PROJECT_ROOT / file_path
+    if isinstance(path, str):
+        file_path = Path(path)
+    elif isinstance(path, Path):
+        file_path = path
+    else:
+        raise ValueError("path must be a string or a Path object")
     
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
