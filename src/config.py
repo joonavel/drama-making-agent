@@ -1,6 +1,7 @@
 """
-워크플로우 전역 설정 및 유틸리티
+전역 설정 및 유틸리티
 """
+
 
 import os
 import logging
@@ -9,18 +10,20 @@ from typing import Optional
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# 환경 변수 로드
-load_dotenv(override=True)
+
 
 # 프로젝트 루트 경로
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
+
+# 환경 변수 로드
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
 
 # 경로 상수 정의
 PROMPTS_DIR = PROJECT_ROOT / "src" / "prompts"
 OUTPUT_DIR = PROJECT_ROOT / "local_storage"
-ASSETS_DIR = OUTPUT_DIR / "imgs"
-FRAMES_DIR = ASSETS_DIR / "poc2"  # 프레임 저장 기본 경로
-VIDEOS_DIR = OUTPUT_DIR / "videos" / "poc2"  # 비디오 저장 기본 경로
+ASSETS_DIR = OUTPUT_DIR / "imgs" / "assets"
+FRAMES_DIR = ASSETS_DIR / "frames"  # 프레임 저장 기본 경로
+VIDEOS_DIR = OUTPUT_DIR / "videos"  # 비디오 저장 기본 경로
 
 # 디렉토리 생성
 for directory in [PROMPTS_DIR, OUTPUT_DIR, ASSETS_DIR, FRAMES_DIR, VIDEOS_DIR]:
@@ -112,7 +115,7 @@ logger = setup_logger("workflows")
 # 환경 변수 검증
 def validate_env_vars():
     """필수 환경 변수 검증"""
-    required_vars = ["GOOGLE_API_KEY"]
+    required_vars = ["GEMINI_API_KEY"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
     if missing_vars:
@@ -120,6 +123,8 @@ def validate_env_vars():
             f"Missing required environment variables: {', '.join(missing_vars)}"
         )
         logger.warning("Please check your .env file")
+    else:
+        logger.info("All required environment variables are present")
 
 
 # 모듈 로드 시 환경 변수 검증
