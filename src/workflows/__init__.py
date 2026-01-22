@@ -55,18 +55,21 @@ from src.config import (
 )
 
 # ==========================================
-# Future imports (uncomment when implemented)
+# Node Functions
 # ==========================================
-# from .nodes import (
-#     bible_generation_node,
-#     planning_node,
-#     asset_generation_node,
-#     frame_generation_node,
-#     video_generation_node,
-#     post_processing_node,
-# )
-#
-# from .graph import create_workflow
+from .nodes import (
+    generate_story_bible_node,
+    generate_character_bible_node,
+    generate_style_bible_node,
+    generate_director_plan_node,
+    generate_image_prompts_node,
+    generate_video_prompts_node,
+)
+
+# ==========================================
+# Workflow Graph
+# ==========================================
+from .graph import create_workflow
 
 __all__ = [
     # Models
@@ -100,12 +103,14 @@ __all__ = [
     "VIDEOS_DIR",
     "logger",
     
-    # Future exports
-    # "bible_generation_node",
-    # "planning_node",
-    # "asset_generation_node",
-    # "frame_generation_node",
-    # "video_generation_node",
-    # "post_processing_node",
-    # "create_workflow",
+    # Node functions
+    "generate_story_bible_node",
+    "generate_character_bible_node",
+    "generate_style_bible_node",
+    "generate_director_plan_node",
+    "generate_image_prompts_node",
+    "generate_video_prompts_node",
+    
+    # Workflow
+    "create_workflow",
 ]
