@@ -48,6 +48,7 @@ def generate_story_bible_node(state: GraphState) -> dict:
 
         # 1. state에서 user_input 추출
         user_input = state.get("user_input", "")
+        max_retries = state.get("max_retries", 3)
         if not user_input:
             raise ValueError("user_input is required")
 
@@ -61,8 +62,20 @@ def generate_story_bible_node(state: GraphState) -> dict:
         structured_llm = llm.with_structured_output(StoryBible)
 
         messages = [("system", system_prompt), ("user", user_prompt)]
+        story_bible = None
+        for idx in range(max_retries):
+            try:
+                logger.info(f"Generating story bible (attempt {idx + 1}/{max_retries})...")
+                story_bible = structured_llm.invoke(messages)
+            except Exception as e:
+                logger.error(f"Error in generating story bible (attempt {idx + 1}/{max_retries}): {e}")
+                time.sleep(1)
+                continue
+            if story_bible is not None:
+                break
 
-        story_bible = structured_llm.invoke(messages)
+        if story_bible is None:
+            raise ValueError("Failed to generate story bible")
 
         # 4. JSON 파일로 저장
         output_path = OUTPUT_DIR / "story_bible.json"
@@ -95,7 +108,7 @@ def generate_character_bible_node(state: GraphState) -> dict:
         # 1. state에서 필요한 데이터 추출
         user_input = state.get("user_input", "")
         story_bible = state.get("story_bible")
-
+        max_retries = state.get("max_retries", 3)
         if not user_input:
             raise ValueError("user_input is required")
         if not story_bible:
@@ -119,7 +132,18 @@ def generate_character_bible_node(state: GraphState) -> dict:
 
         messages = [("system", system_prompt), ("user", user_prompt)]
 
-        character_bible = structured_llm.invoke(messages)
+
+        character_bible = None
+        for idx in range(max_retries):
+            logger.info(f"Generating character bible (attempt {idx + 1}/{max_retries})...")
+            try:
+                character_bible = structured_llm.invoke(messages)
+            except Exception as e:
+                logger.error(f"Error in generating character bible (attempt {idx + 1}/{max_retries}): {e}")
+                time.sleep(1)
+                continue
+            if character_bible is not None:
+                break
 
         # 4. JSON 파일로 저장
         output_path = OUTPUT_DIR / "character_bible.json"
@@ -153,7 +177,7 @@ def generate_style_bible_node(state: GraphState) -> dict:
         user_input = state.get("user_input", "")
         story_bible = state.get("story_bible")
         character_bible = state.get("character_bible")
-
+        max_retries = state.get("max_retries", 3)
         if not user_input:
             raise ValueError("user_input is required")
         if not story_bible:
@@ -183,8 +207,17 @@ def generate_style_bible_node(state: GraphState) -> dict:
         structured_llm = llm.with_structured_output(StyleBible)
 
         messages = [("system", system_prompt), ("user", user_prompt)]
-
-        style_bible = structured_llm.invoke(messages)
+        style_bible = None
+        for idx in range(max_retries):
+            logger.info(f"Generating style bible (attempt {idx + 1}/{max_retries})...")
+            try:
+                style_bible = structured_llm.invoke(messages)
+            except Exception as e:
+                logger.error(f"Error in generating style bible (attempt {idx + 1}/{max_retries}): {e}")
+                time.sleep(1)
+                continue
+            if style_bible is not None:
+                break
 
         # 4. JSON 파일로 저장
         output_path = OUTPUT_DIR / "style_bible.json"
@@ -219,6 +252,7 @@ def generate_director_plan_node(state: GraphState) -> dict:
         character_bible = state.get("character_bible")
         style_bible = state.get("style_bible")
 
+        max_retries = state.get("max_retries", 3)
         if not story_bible:
             raise ValueError("story_bible is required")
         if not character_bible:
@@ -247,15 +281,30 @@ def generate_director_plan_node(state: GraphState) -> dict:
 
         messages = [("system", system_prompt), ("user", user_prompt)]
 
-        director_output = structured_llm.invoke(messages)
+        for idx in range(max_retries):
+            logger.info(f"Generating director plan (attempt {idx + 1}/{max_retries})...")
+            try:
+                director_output = structured_llm.invoke(messages)
+                # 4. 유효성 검증
+                if len(director_output.keyframes) != 5:
+                    logger.warning(
+                        f"Expected 5 keyframes, got {len(director_output.keyframes)}"
+                    )
+                    time.sleep(1)
+                elif len(director_output.shots) != 4:
+                    logger.warning(
+                        f"Expected 4 shots, got {len(director_output.shots)}"
+                    )
+                    time.sleep(1)
+                else:
+                    break
+                
+            except Exception as e:
+                logger.error(f"Error in generating director plan (attempt {idx + 1}/{max_retries}): {e}")
+                time.sleep(1)
 
-        # 4. 유효성 검증
-        if len(director_output.keyframes) != 5:
-            raise ValueError(
-                f"Expected 5 keyframes, got {len(director_output.keyframes)}"
-            )
-        if len(director_output.shots) != 4:
-            raise ValueError(f"Expected 4 shots, got {len(director_output.shots)}")
+        if director_output is None:
+            raise ValueError("Failed to generate director plan")
 
         # 5. JSON 파일로 저장
         output_path = OUTPUT_DIR / "director_output.json"
@@ -293,6 +342,7 @@ def generate_image_prompts_node(state: GraphState) -> dict:
         character_bible = state.get("character_bible")
         style_bible = state.get("style_bible")
 
+        max_retries = state.get("max_retries", 3)
         if not director_output:
             raise ValueError("director_output is required")
         if not character_bible:
@@ -327,13 +377,25 @@ def generate_image_prompts_node(state: GraphState) -> dict:
 
         messages = [("system", system_prompt), ("user", user_prompt)]
 
-        image_engineer_output = structured_llm.invoke(messages)
+        image_engineer_output = None
+        for idx in range(max_retries):
+            logger.info(f"Generating image prompts (attempt {idx + 1}/{max_retries})...")
+            try:
+                image_engineer_output = structured_llm.invoke(messages)
+                # 4. 유효성 검증
+                if len(image_engineer_output.keyframe_prompts) != 5:
+                    logger.warning(
+                        f"Expected 5 keyframe prompts, got {len(image_engineer_output.keyframe_prompts)}"
+                    )
+                    time.sleep(1)
+                else:
+                    break
+            except Exception as e:
+                logger.error(f"Error in generating image prompts (attempt {idx + 1}/{max_retries}): {e}")
+                time.sleep(1)
 
-        # 4. 유효성 검증
-        if len(image_engineer_output.keyframe_prompts) != 5:
-            raise ValueError(
-                f"Expected 5 keyframe prompts, got {len(image_engineer_output.keyframe_prompts)}"
-            )
+        if image_engineer_output is None:
+            raise ValueError("Failed to generate image prompts")
 
         # 5. JSON 파일로 저장
         output_path = OUTPUT_DIR / "image_engineer_output.json"
@@ -373,6 +435,7 @@ def generate_video_prompts_node(state: GraphState) -> dict:
         character_bible = state.get("character_bible")
         style_bible = state.get("style_bible")
 
+        max_retries = state.get("max_retries", 3)
         if not director_output:
             raise ValueError("director_output is required")
         if not character_bible:
@@ -407,13 +470,26 @@ def generate_video_prompts_node(state: GraphState) -> dict:
 
         messages = [("system", system_prompt), ("user", user_prompt)]
 
-        video_engineer_output = structured_llm.invoke(messages)
+        video_engineer_output = None
+        for idx in range(max_retries):
+            logger.info(f"Generating video prompts (attempt {idx + 1}/{max_retries})...")
+            try:
+                video_engineer_output = structured_llm.invoke(messages)
+                # 4. 유효성 검증
+                if len(video_engineer_output.video_prompts) != 4:
+                    logger.warning(
+                        f"Expected 4 video prompts, got {len(video_engineer_output.video_prompts)}"
+                    )
+                    time.sleep(1)
+                else:
+                    break
+                
+            except Exception as e:
+                logger.error(f"Error in generating video prompts (attempt {idx + 1}/{max_retries}): {e}")
+                time.sleep(1)
 
-        # 4. 유효성 검증
-        if len(video_engineer_output.video_prompts) != 4:
-            raise ValueError(
-                f"Expected 4 video prompts, got {len(video_engineer_output.video_prompts)}"
-            )
+        if video_engineer_output is None:
+            raise ValueError("Failed to generate video prompts")
 
         # 5. JSON 파일로 저장
         output_path = OUTPUT_DIR / "video_engineer_output.json"
@@ -521,7 +597,7 @@ def generate_assets_node(state: GraphState) -> dict:
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
 
-        model_name = "gemini-2.5-flash-image"
+        model_name = "gemini-3-pro-image-preview" # gemini-2.5-flash-image, gemini-3-pro-image-preview
 
         # 3. 각 캐릭터 레퍼런스 이미지 생성
         assets = {}
@@ -621,7 +697,7 @@ def generate_frames_node(state: GraphState) -> dict:
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
 
-        model_name = "gemini-2.5-flash-image"  # gemini-2.5-flash-image, gemini-3-pro-image-preview
+        model_name = "gemini-3-pro-image-preview"  # gemini-2.5-flash-image, gemini-3-pro-image-preview
 
         # 3. 각 키프레임 이미지 생성
         frames = []

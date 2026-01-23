@@ -265,7 +265,10 @@ class GraphState(TypedDict):
     """
 
     # User Input
-    user_input: str  # Initial user input for story generation
+    user_input: Optional[str]  # Initial user input for story generation
+    
+    # Config
+    max_retries: int
 
     # Bible & Guide
     story_bible: Optional[StoryBible]  # 스토리 설정

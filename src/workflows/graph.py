@@ -76,35 +76,10 @@ def create_videos_2_end():
 if __name__ == "__main__":
     from dotenv import load_dotenv
     from src.config import PROJECT_ROOT
+    from typing import cast
 
     load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
 
     workflow = create_workflow()
     user_input = "A young woman discovers a secret about her father's past that leads to a dangerous journey."
-    response = workflow.invoke(GraphState(user_input=user_input))
-
-    # workflow = create_videos_2_end()
-    # import json
-    # with open("local_storage/image_engineer_output.json", "r") as f:
-    #     image_engineer_output = json.load(f)
-    # with open("local_storage/video_engineer_output.json", "r") as f:
-    #     video_engineer_output = json.load(f)
-    # with open("local_storage/story_bible.json", "r") as f:
-    #     story_bible = json.load(f)
-    # with open("local_storage/character_bible.json", "r") as f:
-    #     character_bible = json.load(f)
-    # with open("local_storage/style_bible.json", "r") as f:
-    #     style_bible = json.load(f)
-    # with open("local_storage/director_output.json", "r") as f:
-    #     director_output = json.load(f)
-    # frames = [FRAMES_DIR / f for f in os.listdir(FRAMES_DIR) if f.endswith(".png")]
-    # # print(f"frames: {frames}")
-    # response = workflow.invoke(GraphState(
-    #     image_engineer_output=ImageEngineerOutput(**image_engineer_output),
-    #     video_engineer_output=VideoEngineerOutput(**video_engineer_output),
-    #     story_bible=StoryBible(**story_bible),
-    #     character_bible=CharacterBible(**character_bible),
-    #     style_bible=StyleBible(**style_bible),
-    #     director_output=DirectorOutput(**director_output),
-    #     frames=frames,
-    # ))
+    response = workflow.invoke(cast(GraphState, {"user_input": user_input}))
