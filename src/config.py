@@ -2,14 +2,12 @@
 전역 설정 및 유틸리티
 """
 
-
 import os
 import logging
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-
 
 
 # 프로젝트 루트 경로
@@ -33,36 +31,36 @@ for directory in [PROMPTS_DIR, OUTPUT_DIR, ASSETS_DIR, FRAMES_DIR, VIDEOS_DIR]:
 def setup_logger(name: str = __name__, level: int = logging.INFO) -> logging.Logger:
     """로거 설정"""
     logger = logging.getLogger(name)
-    
+
     if not logger.handlers:
         logger.setLevel(level)
-        
+
         # 콘솔 핸들러
         console_handler = logging.StreamHandler()
         console_handler.setLevel(level)
-        
+
         # 포매터
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         console_handler.setFormatter(formatter)
-        
+
         logger.addHandler(console_handler)
-    
+
     return logger
 
 
 def load_prompt(path: str | Path) -> str:
     """
     프롬프트 파일을 로드합니다.
-    
+
     Args:
         path: 프롬프트 파일 경로 (상대 경로 또는 절대 경로)
-    
+
     Returns:
         str: 프롬프트 내용
-    
+
     Example:
         >>> prompt = load_prompt("prompts/system/story_agent.prompt")
     """
@@ -72,7 +70,7 @@ def load_prompt(path: str | Path) -> str:
         file_path = path
     else:
         raise ValueError("path must be a string or a Path object")
-    
+
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
 
@@ -82,21 +80,21 @@ def get_llm(
     temperature: float = 1.0,
     max_tokens: Optional[int] = None,
     timeout: Optional[int] = None,
-    max_retries: int = 2
+    max_retries: int = 2,
 ) -> ChatGoogleGenerativeAI:
     """
     LLM 인스턴스를 생성합니다.
-    
+
     Args:
         model: 사용할 모델 이름
         temperature: 생성 온도 (0.0~2.0, Gemini 3.0+ 기본값 1.0)
         max_tokens: 최대 토큰 수
         timeout: 타임아웃 (초)
         max_retries: 최대 재시도 횟수
-    
+
     Returns:
         ChatGoogleGenerativeAI: LLM 인스턴스
-    
+
     Example:
         >>> llm = get_llm(model="gemini-3-flash-preview", temperature=1.0)
     """
@@ -118,7 +116,7 @@ def validate_env_vars():
     """필수 환경 변수 검증"""
     required_vars = ["GEMINI_API_KEY"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
-    
+
     if missing_vars:
         logger.warning(
             f"Missing required environment variables: {', '.join(missing_vars)}"
