@@ -266,7 +266,7 @@ class GraphState(TypedDict):
 
     # User Input
     user_input: Optional[str]  # Initial user input for story generation
-    
+
     # Config
     max_retries: int
 

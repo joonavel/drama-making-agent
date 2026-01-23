@@ -65,10 +65,14 @@ def generate_story_bible_node(state: GraphState) -> dict:
         story_bible = None
         for idx in range(max_retries):
             try:
-                logger.info(f"Generating story bible (attempt {idx + 1}/{max_retries})...")
+                logger.info(
+                    f"Generating story bible (attempt {idx + 1}/{max_retries})..."
+                )
                 story_bible = structured_llm.invoke(messages)
             except Exception as e:
-                logger.error(f"Error in generating story bible (attempt {idx + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Error in generating story bible (attempt {idx + 1}/{max_retries}): {e}"
+                )
                 time.sleep(1)
                 continue
             if story_bible is not None:
@@ -132,14 +136,17 @@ def generate_character_bible_node(state: GraphState) -> dict:
 
         messages = [("system", system_prompt), ("user", user_prompt)]
 
-
         character_bible = None
         for idx in range(max_retries):
-            logger.info(f"Generating character bible (attempt {idx + 1}/{max_retries})...")
+            logger.info(
+                f"Generating character bible (attempt {idx + 1}/{max_retries})..."
+            )
             try:
                 character_bible = structured_llm.invoke(messages)
             except Exception as e:
-                logger.error(f"Error in generating character bible (attempt {idx + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Error in generating character bible (attempt {idx + 1}/{max_retries}): {e}"
+                )
                 time.sleep(1)
                 continue
             if character_bible is not None:
@@ -213,7 +220,9 @@ def generate_style_bible_node(state: GraphState) -> dict:
             try:
                 style_bible = structured_llm.invoke(messages)
             except Exception as e:
-                logger.error(f"Error in generating style bible (attempt {idx + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Error in generating style bible (attempt {idx + 1}/{max_retries}): {e}"
+                )
                 time.sleep(1)
                 continue
             if style_bible is not None:
@@ -282,7 +291,9 @@ def generate_director_plan_node(state: GraphState) -> dict:
         messages = [("system", system_prompt), ("user", user_prompt)]
 
         for idx in range(max_retries):
-            logger.info(f"Generating director plan (attempt {idx + 1}/{max_retries})...")
+            logger.info(
+                f"Generating director plan (attempt {idx + 1}/{max_retries})..."
+            )
             try:
                 director_output = structured_llm.invoke(messages)
                 # 4. 유효성 검증
@@ -298,9 +309,11 @@ def generate_director_plan_node(state: GraphState) -> dict:
                     time.sleep(1)
                 else:
                     break
-                
+
             except Exception as e:
-                logger.error(f"Error in generating director plan (attempt {idx + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Error in generating director plan (attempt {idx + 1}/{max_retries}): {e}"
+                )
                 time.sleep(1)
 
         if director_output is None:
@@ -379,7 +392,9 @@ def generate_image_prompts_node(state: GraphState) -> dict:
 
         image_engineer_output = None
         for idx in range(max_retries):
-            logger.info(f"Generating image prompts (attempt {idx + 1}/{max_retries})...")
+            logger.info(
+                f"Generating image prompts (attempt {idx + 1}/{max_retries})..."
+            )
             try:
                 image_engineer_output = structured_llm.invoke(messages)
                 # 4. 유효성 검증
@@ -391,7 +406,9 @@ def generate_image_prompts_node(state: GraphState) -> dict:
                 else:
                     break
             except Exception as e:
-                logger.error(f"Error in generating image prompts (attempt {idx + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Error in generating image prompts (attempt {idx + 1}/{max_retries}): {e}"
+                )
                 time.sleep(1)
 
         if image_engineer_output is None:
@@ -472,7 +489,9 @@ def generate_video_prompts_node(state: GraphState) -> dict:
 
         video_engineer_output = None
         for idx in range(max_retries):
-            logger.info(f"Generating video prompts (attempt {idx + 1}/{max_retries})...")
+            logger.info(
+                f"Generating video prompts (attempt {idx + 1}/{max_retries})..."
+            )
             try:
                 video_engineer_output = structured_llm.invoke(messages)
                 # 4. 유효성 검증
@@ -483,9 +502,11 @@ def generate_video_prompts_node(state: GraphState) -> dict:
                     time.sleep(1)
                 else:
                     break
-                
+
             except Exception as e:
-                logger.error(f"Error in generating video prompts (attempt {idx + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Error in generating video prompts (attempt {idx + 1}/{max_retries}): {e}"
+                )
                 time.sleep(1)
 
         if video_engineer_output is None:
@@ -597,7 +618,7 @@ def generate_assets_node(state: GraphState) -> dict:
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
 
-        model_name = "gemini-3-pro-image-preview" # gemini-2.5-flash-image, gemini-3-pro-image-preview
+        model_name = "gemini-3-pro-image-preview"  # gemini-2.5-flash-image, gemini-3-pro-image-preview
 
         # 3. 각 캐릭터 레퍼런스 이미지 생성
         assets = {}
