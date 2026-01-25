@@ -208,3 +208,6 @@ __marimo__/
 
 # jupyter notebook
 *.ipynb
+
+# Google Cloud Service Account Key
+account_key/
