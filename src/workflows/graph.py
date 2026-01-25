@@ -9,7 +9,10 @@ from src.workflows.nodes import (
     generate_assets_node,
     generate_frames_node,
     generate_videos_node,
+    upload_assets_and_frames_to_gcs_node,
+    generate_videos_with_kie_node,
     postprocess_node,
+    route_after_veo_generation,
 )
 from src.workflows.tasks import GraphState
 
@@ -25,7 +28,9 @@ def create_workflow():
     workflow.add_node("video_prompts", generate_video_prompts_node)
     workflow.add_node("assets", generate_assets_node)
     workflow.add_node("frames", generate_frames_node)
+    workflow.add_node("upload_gcs", upload_assets_and_frames_to_gcs_node)
     workflow.add_node("videos", generate_videos_node)
+    workflow.add_node("kie_videos", generate_videos_with_kie_node)
     workflow.add_node("postprocess", postprocess_node)
 
     workflow.add_edge(START, "story_bible")
@@ -36,12 +41,53 @@ def create_workflow():
     workflow.add_edge("image_prompts", "video_prompts")
     workflow.add_edge("video_prompts", "assets")
     workflow.add_edge("assets", "frames")
-    workflow.add_edge("frames", "videos")
-    workflow.add_edge("videos", "postprocess")
+    workflow.add_edge("frames", "upload_gcs")  # 프레임 생성 후 GCS 업로드
+    workflow.add_edge("upload_gcs", "videos")  # GCS 업로드 후 Veo 3.1 시도
+    
+    # Veo 3.1 실패시 Kie API로 전환하는 conditional edge
+    workflow.add_conditional_edges(
+        "videos",
+        route_after_veo_generation,
+        {
+            "postprocess": "postprocess",  # Veo 3.1 성공시
+            "kie_videos": "kie_videos",  # Veo 3.1 실패시
+        }
+    )
+    
+    workflow.add_edge("kie_videos", "postprocess")  # Kie API 후 후처리
     workflow.add_edge("postprocess", END)
 
     return workflow.compile()
 
+def create_workflow_kie():
+    workflow = StateGraph(GraphState)
+
+    workflow.add_node("story_bible", generate_story_bible_node)
+    workflow.add_node("character_bible", generate_character_bible_node)
+    workflow.add_node("style_bible", generate_style_bible_node)
+    workflow.add_node("director_plan", generate_director_plan_node)
+    workflow.add_node("image_prompts", generate_image_prompts_node)
+    workflow.add_node("video_prompts", generate_video_prompts_node)
+    workflow.add_node("assets", generate_assets_node)
+    workflow.add_node("frames", generate_frames_node)
+    workflow.add_node("upload_gcs", upload_assets_and_frames_to_gcs_node)
+    workflow.add_node("kie_videos", generate_videos_with_kie_node)
+    workflow.add_node("postprocess", postprocess_node)
+
+    workflow.add_edge(START, "story_bible")
+    workflow.add_edge("story_bible", "character_bible")
+    workflow.add_edge("character_bible", "style_bible")
+    workflow.add_edge("style_bible", "director_plan")
+    workflow.add_edge("director_plan", "image_prompts")
+    workflow.add_edge("image_prompts", "video_prompts")
+    workflow.add_edge("video_prompts", "assets")
+    workflow.add_edge("assets", "frames")
+    workflow.add_edge("frames", "upload_gcs")
+    workflow.add_edge("upload_gcs", "kie_videos")
+    workflow.add_edge("kie_videos", "postprocess")
+    workflow.add_edge("postprocess", END)
+
+    return workflow.compile()
 
 def create_assets_2_end():
     workflow = StateGraph(GraphState)
@@ -80,6 +126,7 @@ if __name__ == "__main__":
 
     load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
 
-    workflow = create_workflow()
-    user_input = "A young woman discovers a secret about her father's past that leads to a dangerous journey."
+    # workflow = create_workflow()
+    workflow = create_workflow_kie()
+    user_input = "Ghost Hunter Sarah investigates a haunted house. However, the Evil Ghost Gaspar attacks her and kidnaps her. Sarah must escape from the haunted house."
     response = workflow.invoke(cast(GraphState, {"user_input": user_input}))

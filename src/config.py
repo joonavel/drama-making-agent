@@ -111,11 +111,25 @@ def get_llm(
 logger = setup_logger("workflows")
 
 
+# GCS 관련 설정
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "assets_and_frames")
+GCS_SERVICE_ACCOUNT_KEY_PATH = os.getenv(
+    "GCS_SERVICE_ACCOUNT_KEY_PATH", "account_key/service_account_key.json"
+)
+
+# Kie API 관련 설정
+KIE_API_KEY = os.getenv("KIE_API_KEY")
+KIE_API_BASE_URL = "https://api.kie.ai/api/v1/veo"
+
+
 # 환경 변수 검증
 def validate_env_vars():
     """필수 환경 변수 검증"""
     required_vars = ["GEMINI_API_KEY"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+    optional_vars = ["KIE_API_KEY", "GCS_BUCKET_NAME", "GCS_SERVICE_ACCOUNT_KEY_PATH"]
+    missing_optional = [var for var in optional_vars if not os.getenv(var)]
 
     if missing_vars:
         logger.warning(
@@ -124,6 +138,12 @@ def validate_env_vars():
         logger.warning("Please check your .env file")
     else:
         logger.info("All required environment variables are present")
+
+    if missing_optional:
+        logger.info(
+            f"Optional environment variables not set: {', '.join(missing_optional)}"
+        )
+        logger.info("Some features may not be available")
 
 
 # 모듈 로드 시 환경 변수 검증

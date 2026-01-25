@@ -7,11 +7,14 @@ import time
 import os
 import subprocess
 import cv2
+import requests
+import datetime
 from pathlib import Path
 from PIL import Image
 from typing import Any, Optional, Sequence
 from google import genai
 from google.genai import types
+from google.cloud import storage
 from src.config import (
     load_prompt,
     get_llm,
@@ -21,6 +24,10 @@ from src.config import (
     ASSETS_DIR,
     FRAMES_DIR,
     VIDEOS_DIR,
+    GCS_BUCKET_NAME,
+    GCS_SERVICE_ACCOUNT_KEY_PATH,
+    KIE_API_KEY,
+    KIE_API_BASE_URL,
 )
 from src.workflows.tasks import (
     StoryBible,
@@ -939,15 +946,16 @@ def _generate_video_with_interpolation(
 def generate_videos_node(state: GraphState) -> dict:
     """
     Veo 3.1 API를 사용하여 4개의 비디오를 생성하는 노드
+    실패시 veo_failed 플래그를 True로 설정합니다.
 
     Args:
         state: GraphState dict containing frames, video_engineer_output
 
     Returns:
-        dict: {"videos": ["path/to/video_0.mp4", ...]}
+        dict: {"videos": ["path/to/video_0.mp4", ...], "veo_failed": bool}
     """
     try:
-        logger.info("Starting Videos generation...")
+        logger.info("Starting Videos generation with Veo 3.1...")
 
         # 1. state에서 필요한 데이터 추출
         frames = state.get("frames")
@@ -977,7 +985,7 @@ def generate_videos_node(state: GraphState) -> dict:
             video_prompt = video_prompt_obj.prompt
 
             logger.info(
-                f"Generating video {i + 1}/4 (shot {video_prompt_obj.shot_index})..."
+                f"Generating video {i + 1}/4 (shot {video_prompt_obj.shot_index}) with Veo 3.1..."
             )
 
             # 첫 번째 프레임 결정
@@ -1013,7 +1021,7 @@ def generate_videos_node(state: GraphState) -> dict:
             )
 
             if not success:
-                raise Exception(f"Failed to generate video {i}")
+                raise Exception(f"Failed to generate video {i} with Veo 3.1")
 
             videos.append(str(video_path))
             logger.info(f"Video {i + 1}/4 completed: {video_path}")
@@ -1021,14 +1029,17 @@ def generate_videos_node(state: GraphState) -> dict:
         if len(videos) != 4:
             raise ValueError(f"Expected 4 videos, but generated {len(videos)}")
 
-        logger.info(f"Successfully generated {len(videos)} videos")
+        logger.info(f"Successfully generated {len(videos)} videos with Veo 3.1")
 
-        # 4. 결과 반환
-        return {"videos": videos}
+        # 4. 결과 반환 (성공)
+        return {"videos": videos, "veo_failed": False}
 
     except Exception as e:
         logger.error(f"Error in generate_videos_node: {e}")
-        return {"errors": [f"Videos generation failed: {str(e)}"]}
+        logger.warning("Veo 3.1 failed, will try Kie API...")
+        
+        # 실패시 veo_failed 플래그를 True로 설정하고 반환
+        return {"veo_failed": True, "errors": [f"Veo 3.1 video generation failed: {str(e)}"]}
 
 
 def _merge_videos_ffmpeg(
@@ -1057,6 +1068,7 @@ def _merge_videos_ffmpeg(
         # FFmpeg concat demuxer 실행
         cmd = [
             "ffmpeg",
+            "-y",  # 기존 파일을 묻지 않고 덮어쓰기
             "-f",
             "concat",
             "-safe",
@@ -1126,3 +1138,426 @@ def postprocess_node(state: GraphState) -> dict:
     except Exception as e:
         logger.error(f"Error in postprocess_node: {e}")
         return {"errors": [f"Video postprocessing failed: {str(e)}"]}
+
+
+# ==========================================
+# GCS Upload Utilities & Node
+# ==========================================
+
+
+def _upload_to_gcs(
+    local_file_path: str | Path,
+    gcs_blob_name: str,
+    bucket_name: str = GCS_BUCKET_NAME,
+    service_account_key_path: str = GCS_SERVICE_ACCOUNT_KEY_PATH,
+) -> str:
+    """
+    GCS에 파일을 업로드하고 공개 URL을 반환합니다.
+
+    Args:
+        local_file_path: 업로드할 로컬 파일 경로
+        gcs_blob_name: GCS에 저장될 blob 이름 (경로 포함)
+        bucket_name: GCS 버킷 이름
+        service_account_key_path: 서비스 계정 키 파일 경로
+
+    Returns:
+        str: 업로드된 파일의 공개 URL
+    """
+    try:
+        # 서비스 계정 키로 클라이언트 생성
+        storage_client = storage.Client.from_service_account_json(
+            service_account_key_path
+        )
+
+        # 버킷 및 Blob 선택
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(gcs_blob_name)
+
+        # 업로드 실행
+        logger.info(f"Uploading {local_file_path} to GCS as {gcs_blob_name}...")
+        blob.upload_from_filename(str(local_file_path))
+        
+        # 공개 URL 생성 (Signed URL 대신 공개 URL 사용)
+        public_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_blob_name}"
+        
+        logger.info(f"Upload successful: {public_url}")
+        return public_url
+
+    except Exception as e:
+        logger.error(f"Failed to upload {local_file_path} to GCS: {e}")
+        raise
+
+
+def upload_assets_and_frames_to_gcs_node(state: GraphState) -> dict:
+    """
+    에셋 및 프레임을 GCS에 업로드하는 노드
+
+    Args:
+        state: GraphState dict containing assets, frames
+
+    Returns:
+        dict: {"gcs_urls": {"assets": [...], "frames": [...]}}
+    """
+    try:
+        logger.info("Starting GCS upload for assets and frames...")
+
+        # 1. state에서 에셋 및 프레임 추출
+        assets = state.get("assets", {})
+        frames = state.get("frames", [])
+
+        if not frames:
+            raise ValueError("No frames to upload")
+
+        gcs_urls = {"assets": [], "frames": []}
+
+        # 2. 에셋 업로드 (선택적)
+        if assets:
+            for character_name, asset_path in assets.items():
+                safe_name = character_name.replace(" ", "_").lower()
+                gcs_blob_name = f"assets/{safe_name}.png"
+                
+                try:
+                    url = _upload_to_gcs(asset_path, gcs_blob_name)
+                    gcs_urls["assets"].append(url)
+                except Exception as e:
+                    logger.warning(f"Failed to upload asset {character_name}: {e}")
+                    # 에셋 업로드 실패는 치명적이지 않으므로 계속 진행
+
+        # 3. 프레임 업로드
+        for idx, frame_path in enumerate(frames):
+            gcs_blob_name = f"assets/frames/keyframe_{idx}.png"
+            
+            try:
+                url = _upload_to_gcs(frame_path, gcs_blob_name)
+                gcs_urls["frames"].append(url)
+            except Exception as e:
+                logger.error(f"Failed to upload frame {idx}: {e}")
+                raise  # 프레임 업로드 실패는 치명적
+
+        logger.info(
+            f"Successfully uploaded {len(gcs_urls['assets'])} assets and {len(gcs_urls['frames'])} frames to GCS"
+        )
+
+        # 4. 결과 반환
+        return {"gcs_urls": gcs_urls}
+
+    except Exception as e:
+        logger.error(f"Error in upload_assets_and_frames_to_gcs_node: {e}")
+        return {"errors": [f"GCS upload failed: {str(e)}"]}
+
+
+# ==========================================
+# Kie API Utilities & Node
+# ==========================================
+
+
+def _download_video_from_url(video_url: str, save_path: str | Path) -> bool:
+    """
+    URL에서 비디오를 다운로드하여 로컬에 저장합니다.
+
+    Args:
+        video_url: 다운로드할 비디오 URL
+        save_path: 저장할 로컬 파일 경로
+
+    Returns:
+        bool: 성공 여부
+    """
+    try:
+        logger.info(f"Downloading video from {video_url}...")
+        response = requests.get(video_url, stream=True)
+        response.raise_for_status()
+
+        # 디렉터리 생성
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+
+        with open(save_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        logger.info(f"Video downloaded successfully to {save_path}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to download video: {e}")
+        return False
+
+
+def _check_kie_video_status(task_id: str, api_key: Optional[str] = None) -> Optional[dict]:
+    """
+    Kie API 비디오 생성 상태를 확인합니다.
+
+    Args:
+        task_id: Kie API 작업 ID
+        api_key: Kie API 키
+
+    Returns:
+        dict: 완료된 경우 응답 데이터, 진행 중이면 None, 실패시 False
+    """
+    if api_key is None:
+        api_key = KIE_API_KEY
+    if not api_key:
+        raise ValueError("KIE_API_KEY is not set")
+    
+    url = f"{KIE_API_BASE_URL}/record-info?taskId={task_id}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    try:
+        response = requests.get(url, headers=headers)
+        result = response.json()
+
+        if response.ok and result.get("code") == 200:
+            data = result["data"]
+            success_flag = data["successFlag"]
+
+            if success_flag == 0:
+                logger.info("Kie API: Generating...")
+                return None
+            elif success_flag == 1:
+                logger.info("Kie API: Generation successful!")
+                return data
+            else:
+                logger.error(f"Kie API: Generation failed - {result.get('msg')}")
+                return False
+        else:
+            logger.error(f"Kie API: Status check failed - {result.get('msg')}")
+            return None
+
+    except Exception as e:
+        logger.error(f"Kie API: Status check error - {e}")
+        return None
+
+
+def _wait_for_kie_completion(task_id: str, api_key: Optional[str] = None, poll_interval: int = 30, max_retries: int = 8) -> Optional[dict]:
+    """
+    Kie API 비디오 생성이 완료될 때까지 대기합니다.
+
+    Args:
+        task_id: Kie API 작업 ID
+        api_key: Kie API 키
+        poll_interval: 폴링 간격 (초)
+
+    Returns:
+        dict: 완료된 경우 응답 데이터, 실패시 None
+    """
+    if api_key is None:
+        api_key = KIE_API_KEY
+    if not api_key:
+        raise ValueError("KIE_API_KEY is not set")
+    
+    attempt = 0
+    while attempt < max_retries:
+        attempt += 1
+        result = _check_kie_video_status(task_id, api_key)
+        if result is False:
+            return None
+        elif result is not None:
+            return result
+        logger.info(f"Kie API: Waiting for completion... (attempt {attempt}/{max_retries})")
+        time.sleep(poll_interval)
+    logger.error(f"Kie API: Failed to complete video generation after {max_retries} attempts")
+    return None
+
+
+def _generate_video_with_kie(
+    prompt: str,
+    first_frame_url: str,
+    last_frame_url: str,
+    save_path: str | Path,
+    api_key: Optional[str] = None,
+    model: str = "veo3_fast",
+    aspect_ratio: str = "16:9",
+) -> bool:
+    """
+    Kie API를 사용하여 비디오를 생성합니다.
+
+    Args:
+        prompt: 비디오 생성 프롬프트
+        first_frame_url: 첫 번째 프레임 이미지 GCS URL
+        last_frame_url: 마지막 프레임 이미지 GCS URL
+        save_path: 저장할 비디오 파일 경로
+        api_key: Kie API 키
+        model: 모델 이름
+        aspect_ratio: 화면 비율
+
+    Returns:
+        bool: 성공 여부
+    """
+    try:
+        if api_key is None:
+            api_key = KIE_API_KEY
+        if not api_key:
+            raise ValueError("KIE_API_KEY is not set")
+        
+        logger.info("Generating video with Kie API...")
+
+        # 1. 비디오 생성 요청
+        url = f"{KIE_API_BASE_URL}/generate"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "prompt": prompt,
+            "imageUrls": [first_frame_url, last_frame_url],
+            "model": model,
+            "aspect_ratio": aspect_ratio,
+            "enableTranslation": True,
+            "generationType": "FIRST_AND_LAST_FRAMES_2_VIDEO",
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+        result = response.json()
+
+        if not response.ok or result.get("code") != 200:
+            logger.error(f"Kie API: Request failed - {result.get('msg')}")
+            return False
+
+        task_id = result["data"]["taskId"]
+        logger.info(f"Kie API: Task submitted with ID {task_id}")
+
+        # 2. 생성 완료 대기
+        completion_result = _wait_for_kie_completion(task_id, api_key)
+
+        if not completion_result:
+            logger.error("Kie API: Video generation failed or timed out")
+            return False
+
+        # 3. 비디오 다운로드
+        video_urls = completion_result["response"]["resultUrls"]
+        if not video_urls:
+            logger.error("Kie API: No video URLs in response")
+            return False
+
+        video_url = video_urls[0]
+        success = _download_video_from_url(video_url, save_path)
+
+        if success:
+            logger.info(f"Kie API: Video saved to {save_path}")
+
+        return success
+
+    except Exception as e:
+        logger.error(f"Kie API: Error during video generation - {e}")
+        return False
+
+
+def generate_videos_with_kie_node(state: GraphState) -> dict:
+    """
+    Kie API를 사용하여 4개의 비디오를 생성하는 노드
+
+    Args:
+        state: GraphState dict containing gcs_urls, video_engineer_output
+
+    Returns:
+        dict: {"videos": ["path/to/video_0.mp4", ...]}
+    """
+    try:
+        logger.info("Starting video generation with Kie API...")
+
+        # 1. state에서 필요한 데이터 추출
+        gcs_urls = state.get("gcs_urls")
+        video_engineer_output = state.get("video_engineer_output")
+
+        if not gcs_urls or not gcs_urls.get("frames"):
+            raise ValueError("GCS frame URLs not found")
+        if not video_engineer_output:
+            raise ValueError("video_engineer_output is required")
+        if len(video_engineer_output.video_prompts) != 4:
+            raise ValueError(
+                f"Expected 4 video prompts, got {len(video_engineer_output.video_prompts)}"
+            )
+
+        frame_urls = gcs_urls["frames"]
+        if len(frame_urls) != 5:
+            raise ValueError(f"Expected 5 frame URLs, got {len(frame_urls)}")
+
+        # 2. 각 비디오 생성 (4개)
+        videos = []
+        temp_frames_dir = VIDEOS_DIR / "temp_frames"
+        temp_frames_dir.mkdir(parents=True, exist_ok=True)
+
+        for i in range(4):
+            video_prompt_obj = video_engineer_output.video_prompts[i]
+            video_prompt = video_prompt_obj.prompt
+
+            logger.info(
+                f"Generating video {i + 1}/4 (shot {video_prompt_obj.shot_index}) with Kie API..."
+            )
+
+            # 첫 번째 프레임 URL 결정
+            if i == 0:
+                # 첫 번째 비디오: GCS의 첫 번째 프레임 URL 사용
+                first_frame_url = frame_urls[0]
+            else:
+                # 두 번째 비디오 이후: 이전 비디오의 마지막 프레임 추출 후 GCS 업로드
+                prev_video_path = videos[i - 1]
+                temp_frame_path = temp_frames_dir / f"temp_frame_{i}.png"
+
+                logger.info(
+                    f"Extracting last frame from previous video: {prev_video_path}"
+                )
+                if not _extract_last_frame_opencv(prev_video_path, temp_frame_path):
+                    raise Exception(f"Failed to extract last frame from video {i - 1}")
+
+                # GCS에 업로드
+                gcs_blob_name = f"assets/frames/temp_keyframe_{i}.png"
+                first_frame_url = _upload_to_gcs(temp_frame_path, gcs_blob_name)
+
+            # 마지막 프레임 URL: GCS의 다음 프레임
+            last_frame_url = frame_urls[i + 1]
+
+            # 비디오 저장 경로
+            video_path = VIDEOS_DIR / f"video_{i}.mp4"
+
+            # Kie API로 비디오 생성
+            success = _generate_video_with_kie(
+                prompt=video_prompt,
+                first_frame_url=first_frame_url,
+                last_frame_url=last_frame_url,
+                save_path=video_path,
+            )
+
+            if not success:
+                raise Exception(f"Failed to generate video {i} with Kie API")
+
+            videos.append(str(video_path))
+            logger.info(f"Video {i + 1}/4 completed: {video_path}")
+
+        if len(videos) != 4:
+            raise ValueError(f"Expected 4 videos, but generated {len(videos)}")
+
+        logger.info(f"Successfully generated {len(videos)} videos with Kie API")
+
+        # 3. 결과 반환
+        return {"videos": videos}
+
+    except Exception as e:
+        logger.error(f"Error in generate_videos_with_kie_node: {e}")
+        return {"errors": [f"Kie API video generation failed: {str(e)}"]}
+
+
+# ==========================================
+# Router Functions
+# ==========================================
+
+
+def route_after_veo_generation(state: GraphState) -> str:
+    """
+    Veo 3.1 비디오 생성 후 다음 노드를 결정하는 라우터
+
+    Args:
+        state: GraphState dict containing veo_failed
+
+    Returns:
+        str: 다음 노드 이름 ("postprocess" 또는 "kie_videos")
+    """
+    veo_failed = state.get("veo_failed", False)
+    
+    if veo_failed:
+        logger.info("Routing to Kie API due to Veo 3.1 failure")
+        return "kie_videos"
+    else:
+        logger.info("Routing to postprocess (Veo 3.1 success)")
+        return "postprocess"

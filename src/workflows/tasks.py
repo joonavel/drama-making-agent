@@ -290,5 +290,11 @@ class GraphState(TypedDict):
     videos: Optional[List[str]]  # 비디오 파일 경로
     final_video: Optional[str]  # 최종 비디오 파일 경로
 
+    # GCS URLs
+    gcs_urls: Optional[Dict[str, List[str]]]  # GCS에 업로드된 에셋 및 프레임 URL
+
+    # Video generation flags
+    veo_failed: bool  # Veo 3.1 API 실패 여부
+
     # Error tracking
     errors: Optional[List[str]]  # 오류 메시지
