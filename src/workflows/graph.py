@@ -43,7 +43,7 @@ def create_workflow():
     workflow.add_edge("assets", "frames")
     workflow.add_edge("frames", "upload_gcs")  # 프레임 생성 후 GCS 업로드
     workflow.add_edge("upload_gcs", "videos")  # GCS 업로드 후 Veo 3.1 시도
-    
+
     # Veo 3.1 실패시 Kie API로 전환하는 conditional edge
     workflow.add_conditional_edges(
         "videos",
@@ -51,13 +51,14 @@ def create_workflow():
         {
             "postprocess": "postprocess",  # Veo 3.1 성공시
             "kie_videos": "kie_videos",  # Veo 3.1 실패시
-        }
+        },
     )
-    
+
     workflow.add_edge("kie_videos", "postprocess")  # Kie API 후 후처리
     workflow.add_edge("postprocess", END)
 
     return workflow.compile()
+
 
 def create_workflow_kie():
     workflow = StateGraph(GraphState)
@@ -88,6 +89,7 @@ def create_workflow_kie():
     workflow.add_edge("postprocess", END)
 
     return workflow.compile()
+
 
 def create_assets_2_end():
     workflow = StateGraph(GraphState)

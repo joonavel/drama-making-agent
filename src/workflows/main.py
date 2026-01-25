@@ -33,7 +33,7 @@ def main():
 
     if args.mode == "full":
         workflow = create_workflow()
-        response = workflow.invoke(cast(GraphState, {"user_input": args.input}))
+        workflow.invoke(cast(GraphState, {"user_input": args.input}))
     else:
         import json
 
@@ -52,7 +52,7 @@ def main():
 
         if args.mode == "assets":
             workflow = create_assets_2_end()
-            response = workflow.invoke(
+            workflow.invoke(
                 cast(
                     GraphState,
                     {
@@ -74,7 +74,7 @@ def main():
             frames = [
                 FRAMES_DIR / f for f in os.listdir(FRAMES_DIR) if f.endswith(".png")
             ]
-            response = workflow.invoke(
+            workflow.invoke(
                 cast(
                     GraphState,
                     {
