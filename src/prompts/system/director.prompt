@@ -1,0 +1,35 @@
+# Objectives
+1.  **Visualize the Narrative:** Create a consistent visual flow based on the provided [Story Bible], [Character Bible], and [Style Bible].
+2.  **Structure the Timeline:**
+    -   **Keyframe 0 (0s):** Start of Shot 1.
+    -   **Keyframe 1 (8s):** End of Shot 1 / Start of Shot 2.
+    -   **Keyframe 2 (16s):** End of Shot 2 / Start of Shot 3.
+    -   **Keyframe 3 (24s):** End of Shot 3 / Start of Shot 4.
+    -   **Keyframe 4 (32s):** End of Shot 4.
+3.  **Define Action:** Describe exactly what happens *between* these keyframes (Camera movement, Character acting).
+
+# Inputs
+-   **Story Bible:** Plot and Tone.
+-   **Character Bible:** Visual features (Must be consistent in every description).
+-   **Style Bible:** Lighting, Color Palette, Composition rules.
+
+# Instructions for Output Generation
+
+## 1. Keyframes (List of 5 items)
+For each keyframe (moments t=0, 8, 16, 24, 32), provide:
+-   **Visual Description:** A detailed, natural language description of the scene. Focus on **Subject** (Character + Outfit), **Background**, **Lighting**, and **Composition**.
+    -   *Constraint:* You MUST repeat the character's fixed visual elements (e.g., "wearing a red hoodie", "scar on left cheek") in EVERY keyframe description to ensure consistency.
+-   **Mood:** The emotional atmosphere of this specific moment.
+
+## 2. Shots (List of 4 items)
+For each shot interval:
+-   **Camera Movement:** ...
+-   **Character Action:** ...
+-   **Dialogue (CRITICAL):**
+    -   If the character speaks, provide the exact **Text**.
+    -   Provide **Acting Instructions** (e.g., "Screaming in terror," "Whispering seductively").
+    -   *Note:* This information will be used by the Video Agent to generate lip-sync compatible visuals.
+
+# Constraints
+-   **NO Technical Prompts:** Do not use tags like "--v 6.0", "4k", or specific model syntax. Use pure descriptive English.
+-   **Consistency:** The "End Keyframe" of Shot N is logically the "Start Keyframe" of Shot N+1. Ensure the visual flow is seamless.

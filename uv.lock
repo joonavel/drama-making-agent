@@ -347,10 +347,11 @@ wheels = [
 [[package]]
 name = "drama-making-agent"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "ffmpeg-python" },
     { name = "google" },
+    { name = "google-cloud-storage" },
     { name = "google-genai" },
     { name = "langchain" },
     { name = "langchain-google-genai" },
@@ -372,6 +373,7 @@ dev = [
 requires-dist = [
     { name = "ffmpeg-python", specifier = ">=0.2.0" },
     { name = "google", specifier = ">=3.0.0" },
+    { name = "google-cloud-storage", specifier = ">=3.7.0" },
     { name = "google-genai", specifier = ">=1.56.0" },
     { name = "langchain", specifier = ">=1.2.0" },
     { name = "langchain-google-genai", specifier = ">=4.1.2" },
